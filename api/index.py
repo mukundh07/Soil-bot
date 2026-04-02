@@ -141,16 +141,6 @@ CRITICAL FORMATTING RULES:
 4. The output must be perfectly clean plain text that is easy to read.
 """
 
-@app.route("/")
-def serve_index():
-    # In Vercel, the app runs in the `api` folder, so index.html is one level up
-    try:
-        html_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "index.html")
-        with open(html_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        return f"Error loading index: {str(e)}"
-
 @app.route("/api/sensor-data")
 def get_sensor_data():
     return jsonify(fetch_sensor_data())
