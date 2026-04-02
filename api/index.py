@@ -138,6 +138,9 @@ CRITICAL FORMATTING RULES:
 1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
 2. Structure your answers clearly using paragraphs with empty line breaks.
 3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-). 
+4. The output must be perfectly clean plain text that is easy to read.
+"""
+
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="en">
 <head>
