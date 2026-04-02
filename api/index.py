@@ -3,8 +3,6 @@ import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from openai import OpenAI
-import numpy as np
-from sklearn.linear_model import LinearRegression
 from datetime import datetime
 
 app = Flask(__name__)
@@ -29,7 +27,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 MODEL = "gpt-4o-mini"
 
 def fetch_sensor_data():
-    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=2000"
+    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=50"
     if THINGSPEAK_READ_KEY:
         url += f"&api_key={THINGSPEAK_READ_KEY}"
     try:
@@ -49,7 +47,6 @@ def fetch_sensor_data():
             val = latest.get(field)
             result[name] = f"{val} {unit}".strip() if val not in (None, "") else "N/A"
             
-            # Trend calculation
             old_val = oldest.get(field)
             if val and old_val and val != "N/A" and old_val != "N/A":
                 try:
@@ -63,58 +60,21 @@ def fetch_sensor_data():
         result["_timestamp"] = latest.get("created_at", "unknown")
         result["_trend"] = " ".join(trend_text) if trend_text else "Conditions are completely stable."
         
-        # --- ML Prediction (1, 7, 10 day future projection) ---
-        if len(feeds) > 5:
-            try:
-                times = []
-                for f in feeds:
-                    dt = datetime.strptime(f["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-                    times.append(dt.timestamp())
-                
-                X = np.array(times).reshape(-1, 1)
-                X_hours = (X - X[0][0]) / 3600.0
-                
-                last_hour = X_hours[-1][0]
-                target_X = np.array([
-                    [last_hour + 24.0],
-                    [last_hour + 168.0],
-                    [last_hour + 240.0]
-                ])
-                
-                ml_preds = []
-                for field, (name, unit) in FIELD_MAP.items():
-                    y = []
-                    valid_x = []
-                    for i, f in enumerate(feeds):
-                        val = f.get(field)
-                        if val not in (None, "", "N/A"):
-                            try:
-                                y.append(float(val))
-                                valid_x.append(X_hours[i][0])
-                            except ValueError:
-                                pass
-                    
-                    if len(y) > 10:
-                        model_lr = LinearRegression()
-                        model_lr.fit(np.array(valid_x).reshape(-1, 1), np.array(y))
-                        preds = model_lr.predict(target_X)
-                        
-                        def bound_val(p):
-                            if "%" in unit: return max(0.0, min(100.0, p))
-                            elif "cb" in unit: return max(0.0, min(240.0, p))
-                            elif name == "NPK pH": return max(0.0, min(14.0, p))
-                            elif "Temp" in name: return max(-10.0, min(60.0, p))
-                            return max(0.0, p)
-                            
-                        pred_1d = bound_val(preds[0])
-                        pred_7d = bound_val(preds[1])
-                        pred_10d = bound_val(preds[2])
-                        
-                        ml_preds.append(f"{name} (Day 1: {pred_1d:.1f}, Day 7: {pred_7d:.1f}, Day 10: {pred_10d:.1f}{unit})")
-
-                result["_ml_prediction"] = " | ".join(ml_preds) if ml_preds else "Not enough numerical data for ML."
-            except Exception as e:
-                result["_ml_prediction"] = f"[ML Error: {e}]"
+        # Build a simple history summary for ChatGPT to analyze
+        history_points = []
+        step = max(1, len(feeds) // 5)
+        for i in range(0, len(feeds), step):
+            f = feeds[i]
+            ts = f.get("created_at", "")
+            vals = []
+            for field, (name, unit) in FIELD_MAP.items():
+                v = f.get(field)
+                if v not in (None, ""):
+                    vals.append(f"{name}={v}{unit}")
+            if vals:
+                history_points.append(f"[{ts}] {', '.join(vals)}")
+        
+        result["_history"] = " | ".join(history_points) if history_points else ""
 
         return result
     except Exception as e:
@@ -142,8 +102,8 @@ def build_prompt(sensor_data, weather_text=""):
         sensor_text = f"Last updated: {sensor_data.get('_timestamp','')}\n" + "\n".join(lines)
         if "_trend" in sensor_data:
             sensor_text += f"\n  * RECENT TRENDS: {sensor_data['_trend']}"
-        if "_ml_prediction" in sensor_data:
-            sensor_text += f"\n  * ML FORECAST (Next 1, 7, and 10 DAYS): {sensor_data['_ml_prediction']}"
+        if "_history" in sensor_data and sensor_data["_history"]:
+            sensor_text += f"\n  * HISTORICAL DATA POINTS: {sensor_data['_history']}"
             
     return f"""You are SoilBot, an expert AI assistant for soil health and precision agriculture.
 You have access to LIVE sensor readings from an IoT soil monitoring system (ESP32 + LoRaWAN).
@@ -160,8 +120,10 @@ SENSOR GUIDE:
 - NPK pH: Ideal 6.0-7.0 for most crops
 - Nitrogen: Ideal 140-200 mg/kg for spinach. Phosphorus: 30-60. Potassium: 150-250.
 
-Give practical farming advice based on live data. Be friendly and concise.
-If sensor shows N/A, say it is temporarily unavailable.
+INSTRUCTIONS:
+- Give practical farming advice based on live data. Be friendly and concise.
+- If sensor shows N/A, say it is temporarily unavailable.
+- When asked to predict future values, analyze the historical data points and trends provided above, then calculate and provide specific predicted numbers for Day 1, Day 7, and Day 10.
 
 CRITICAL FORMATTING RULES:
 1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
