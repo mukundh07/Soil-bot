@@ -23,8 +23,17 @@ FIELD_MAP = {
     "field8": ("Watermark Moisture",  "%"),
 }
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = None
 MODEL = "gpt-4o-mini"
+
+def get_client():
+    global client
+    if client is None:
+        key = os.environ.get("OPENAI_API_KEY", "")
+        if not key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        client = OpenAI(api_key=key)
+    return client
 
 def fetch_sensor_data():
     url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=50"
@@ -155,7 +164,7 @@ def chat():
     messages.append({"role": "user", "content": user_message})
     
     try:
-        response = client.chat.completions.create(
+        response = get_client().chat.completions.create(
             model=MODEL,
             messages=messages
         )
