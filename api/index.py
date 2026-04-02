@@ -138,10 +138,320 @@ CRITICAL FORMATTING RULES:
 1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
 2. Structure your answers clearly using paragraphs with empty line breaks.
 3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-). 
-4. The output must be perfectly clean plain text that is easy to read.
-"""
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoilBot - AI Soil Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+    color: white;
+  }
+  .header .logo { font-size: 42px; margin-bottom: 8px; }
+  .header h1 { font-size: 28px; font-weight: 700; }
+  .header p { font-size: 14px; opacity: 0.75; margin-top: 4px; }
+
+  .sensor-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 900px;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  .sensor-card {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 10px 16px;
+    color: white;
+    text-align: center;
+    min-width: 110px;
+    transition: transform 0.2s;
+  }
+  .sensor-card:hover { transform: translateY(-2px); }
+  .sensor-card .label { font-size: 11px; opacity: 0.7; margin-bottom: 4px; }
+  .sensor-card .value { font-size: 18px; font-weight: 700; color: #4ade80; }
+  .sensor-card .value.na { color: #f87171; font-size: 14px; }
+  .sensor-ts { color: rgba(255,255,255,0.5); font-size: 11px; text-align: center; margin-bottom: 16px; }
+
+  .chat-container {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    height: 520px;
+    overflow: hidden;
+  }
+  .chat-header {
+    padding: 16px 20px;
+    background: rgba(74,222,128,0.15);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+  }
+  .chat-header .dot {
+    width: 10px; height: 10px;
+    background: #4ade80;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .chat-header span { font-weight: 600; font-size: 15px; }
+  .chat-header small { opacity: 0.6; font-size: 12px; margin-left: auto; }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+  }
+  .message { display: flex; gap: 10px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .message.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .message.bot .avatar { background: rgba(74,222,128,0.2); }
+  .message.user .avatar { background: rgba(99,102,241,0.3); }
+  .bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: white;
+  }
+  .message.bot .bubble {
+    background: rgba(255,255,255,0.1);
+    border-bottom-left-radius: 4px;
+  }
+  .message.user .bubble {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-bottom-right-radius: 4px;
+  }
+  .typing-dot {
+    display: inline-block; width: 8px; height: 8px;
+    background: #4ade80; border-radius: 50%; margin: 0 2px;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2){animation-delay:.2s}
+  .typing-dot:nth-child(3){animation-delay:.4s}
+  @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-8px)}}
+
+  .input-area {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    gap: 10px;
+  }
+  .input-area input {
+    flex: 1;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50px;
+    padding: 12px 20px;
+    color: white;
+    font-size: 14px;
+    font-family: "Inter", sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-area input::placeholder { color: rgba(255,255,255,0.4); }
+  .input-area input:focus { border-color: #4ade80; }
+  .send-btn {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    border: none;
+    border-radius: 50%;
+    width: 46px; height: 46px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s, opacity 0.2s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { transform: scale(1.08); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .suggestions {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 0 20px 14px;
+  }
+  .suggestion {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50px;
+    padding: 6px 14px;
+    color: rgba(255,255,255,0.8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .suggestion:hover { background: rgba(74,222,128,0.2); color: white; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🌱</div>
+  <h1>SoilBot</h1>
+  <p>AI-Powered Soil Health Assistant · Live IoT Data</p>
+</div>
+
+<div class="sensor-bar" id="sensorBar">
+  <div class="sensor-card"><div class="label">Loading...</div><div class="value">--</div></div>
+</div>
+<div class="sensor-ts" id="sensorTs">Fetching live data...</div>
+
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="dot"></div>
+    <span>SoilBot AI</span>
+    <small>Powered by ChatGPT + ThingSpeak</small>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="message bot">
+      <div class="avatar">🤖</div>
+      <div class="bubble">Hello! I am SoilBot 🌱 I can see your live soil sensor data from ThingSpeak. Ask me anything about your soil health, irrigation, or fertilizer needs!</div>
+    </div>
+  </div>
+
+  <div class="suggestions" id="suggestions">
+    <span class="suggestion" onclick="sendSuggestion(this)">Is my soil moist enough?</span>
+    <span class="suggestion" onclick="sendSuggestion(this)">What is the pH level?</span>
+    <span class="suggestion" onclick="sendSuggestion(this)">Do I need to fertilize?</span>
+    <span class="suggestion" onclick="sendSuggestion(this)">Should I water now?</span>
+    <span class="suggestion" onclick="sendSuggestion(this)">Summarize all readings</span>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="userInput" placeholder="Ask about your soil..." onkeydown="if(event.key==='Enter')sendMessage()">
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+  const BASE = "";
+  let history = [];
+
+  async function loadSensors() {
+    try {
+      const r = await fetch(BASE + "/api/sensor-data");
+      const d = await r.json();
+      const bar = document.getElementById("sensorBar");
+      const ts  = document.getElementById("sensorTs");
+      if (d.error) { ts.textContent = "Sensor fetch error: " + d.error; return; }
+      ts.textContent = "Last updated: " + (d._timestamp || "unknown");
+      const icons = {"DS18B20 Temperature":"🌡️","Watermark CB Value":"💧","NPK Moisture":"💦","NPK pH":"⚗️","Nitrogen (N)":"🌿","Phosphorus (P)":"🌾","Potassium (K)":"🍃","Watermark Moisture":"💦"};
+      bar.innerHTML = "";
+      for (const [k, v] of Object.entries(d)) {
+        if (k.startsWith("_")) continue;
+        const isNA = v === "N/A";
+        bar.innerHTML += `<div class="sensor-card"><div class="label">${icons[k]||""} ${k}</div><div class="value ${isNA?"na":""}">${v}</div></div>`;
+      }
+    } catch(e) {
+      document.getElementById("sensorTs").textContent = "Could not fetch sensors.";
+    }
+  }
+
+  function addMessage(role, text) {
+    const msgs = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + role;
+    div.innerHTML = `<div class="avatar">${role==="user"?"👤":"🤖"}</div><div class="bubble">${text.replace(/\\n/g,"<br>")}</div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function showTyping() {
+    const msgs = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message bot"; div.id = "typing";
+    div.innerHTML = `<div class="avatar">🤖</div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function removeTyping() { const t = document.getElementById("typing"); if(t) t.remove(); }
+
+  async function sendMessage() {
+    const input = document.getElementById("userInput");
+    const btn   = document.getElementById("sendBtn");
+    const msg   = input.value.trim();
+    if (!msg) return;
+    input.value = ""; btn.disabled = true;
+    document.getElementById("suggestions").style.display = "none";
+    addMessage("user", msg);
+    history.push({role:"user", text:msg});
+    showTyping();
+    try {
+      const r = await fetch(BASE + "/api/chat", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({message: msg, history: history})
+      });
+      const d = await r.json();
+      removeTyping();
+      if (d.error) { addMessage("bot", "Error: " + d.error); }
+      else {
+        addMessage("bot", d.reply);
+        history.push({role:"bot", text: d.reply});
+      }
+    } catch(e) {
+      removeTyping();
+      addMessage("bot", "Connection error — is the server running?");
+    }
+    btn.disabled = false;
+    input.focus();
+  }
+
+  function sendSuggestion(el) {
+    document.getElementById("userInput").value = el.textContent;
+    sendMessage();
+  }
+
+  loadSensors();
+  setInterval(loadSensors, 30000);
+</script>
+</body>
+</html>"""
+
+@app.route("/")
+def serve_index():
+    return HTML_CONTENT
 
 @app.route("/api/sensor-data")
+
 def get_sensor_data():
     return jsonify(fetch_sensor_data())
 
