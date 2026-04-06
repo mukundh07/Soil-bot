@@ -183,6 +183,10 @@ CRITICAL FORMATTING RULES:
 def index():
     return send_from_directory(".", "index.html")
 
+@app.route("/logo.png")
+def serve_logo():
+    return send_from_directory(".", "soilbot_logo.png")
+
 @app.route("/api/sensor-data")
 def get_sensor_data():
     return jsonify(fetch_sensor_data())

@@ -342,7 +342,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 <body>
 
 <div class="header">
-  <div class="logo">🌱</div>
+  <img src="/logo.png" alt="SoilBot Logo" style="width: 70px; height: 70px; border-radius: 18px; box-shadow: 0 4px 15px rgba(74,222,128,0.25); margin-bottom: 8px;">
   <h1>SoilBot</h1>
   <p>AI-Powered Soil Health Assistant · Live IoT Data</p>
 </div>
@@ -531,6 +531,17 @@ HTML_CONTENT = """<!DOCTYPE html>
 @app.route("/")
 def serve_index():
     return HTML_CONTENT
+
+import os
+@app.route("/logo.png")
+def serve_logo():
+    import mimetypes
+    from flask import send_file
+    # absolute path to current dir
+    path = os.path.join(os.path.dirname(__file__), "..", "soilbot_logo.png")
+    if not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, mimetype="image/png")
 
 @app.route("/api/sensor-data")
 
