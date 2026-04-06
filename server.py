@@ -137,7 +137,7 @@ def fetch_weather_data():
     except Exception as e:
         return f"[Weather error: {e}]"
 
-def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile"):
+def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile", language="English"):
     if "error" in sensor_data:
         sensor_text = f"[ThingSpeak error: {sensor_data['error']}]"
     else:
@@ -175,8 +175,9 @@ INSTRUCTIONS:
 CRITICAL FORMATTING RULES:
 1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
 2. Structure your answers clearly using paragraphs with empty line breaks.
-3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-). 
+3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-).
 4. The output must be perfectly clean plain text that is easy to read.
+5. You MUST respond completely in the requested language: {language}. Translate your expert agricultural advice fluently into {language}.
 """
 
 @app.route("/")
@@ -197,13 +198,14 @@ def chat():
     user_message = data.get("message", "").strip()
     history = data.get("history", [])
     crop_info = data.get("crop_info", "Generic Crop Profile")
+    language = data.get("language", "English")
     
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
         
     sensor_data = fetch_sensor_data()
     weather_data = fetch_weather_data()
-    system_prompt = build_prompt(sensor_data, weather_data, crop_info)
+    system_prompt = build_prompt(sensor_data, weather_data, crop_info, language)
     
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-10:]:

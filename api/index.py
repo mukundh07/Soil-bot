@@ -103,7 +103,7 @@ def fetch_weather_data():
     except Exception as e:
         return f"[Weather error: {e}]"
 
-def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile"):
+def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile", language="English"):
     if "error" in sensor_data:
         sensor_text = f"[ThingSpeak error: {sensor_data['error']}]"
     else:
@@ -143,6 +143,7 @@ CRITICAL FORMATTING RULES:
 2. Structure your answers clearly using paragraphs with empty line breaks.
 3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-). 
 4. The output must be perfectly clean plain text that is easy to read.
+5. You MUST respond completely in the requested language: {language}. Translate your expert agricultural advice fluently into {language}.
 """
 
 HTML_CONTENT = """<!DOCTYPE html>
@@ -352,13 +353,23 @@ HTML_CONTENT = """<!DOCTYPE html>
   <div class="sensor-card"><div class="label">Loading...</div><div class="value">--</div></div>
 </div>
 <div class="sensor-ts" id="sensorTs">Fetching live data...</div>
-<div class="crop-selector" style="margin-bottom: 15px; text-align: center;">
-  <label for="cropSelect" style="color: white; opacity: 0.8; font-size: 14px; margin-right: 10px;">Select Crop & Area:</label>
-  <select id="cropSelect" style="padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; outline: none; cursor: pointer;">
-    <option value="Spinach (Area: 5ft x 3ft, Depth: 1ft)" style="color: black;" selected>🥬 Spinach (5x3x1 ft container)</option>
-    <option value="Tomatoes (Standard spacing)" style="color: black;">🍅 Tomatoes</option>
-    <option value="Generic Crop Profile" style="color: black;">🌱 Generic / Unspecified</option>
-  </select>
+<div class="crop-selector" style="margin-bottom: 15px; text-align: center; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px;">
+  <div>
+    <label for="cropSelect" style="color: white; opacity: 0.8; font-size: 14px; margin-right: 5px;">Crop:</label>
+    <select id="cropSelect" style="padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; outline: none; cursor: pointer;">
+      <option value="Spinach (Area: 5ft x 3ft, Depth: 1ft)" style="color: black;" selected>🥬 Spinach (5x3x1 ft)</option>
+      <option value="Tomatoes (Standard spacing)" style="color: black;">🍅 Tomatoes</option>
+      <option value="Generic Crop Profile" style="color: black;">🌱 Generic / Unspecified</option>
+    </select>
+  </div>
+  <div>
+    <label for="langSelect" style="color: white; opacity: 0.8; font-size: 14px; margin-right: 5px;">Lang:</label>
+    <select id="langSelect" style="padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; outline: none; cursor: pointer;" onchange="updateVoiceLang()">
+      <option value="English" style="color: black;" selected>🇺🇸 English</option>
+      <option value="Hindi" style="color: black;">🇮🇳 Hindi</option>
+      <option value="Telugu" style="color: black;">🇮🇳 Telugu</option>
+    </select>
+  </div>
 </div>
 
 <div class="chat-container">
@@ -394,6 +405,14 @@ HTML_CONTENT = """<!DOCTYPE html>
 <script>
   const BASE = "";
   let history = [];
+  const langCodes = { "English": "en-US", "Hindi": "hi-IN", "Telugu": "te-IN" };
+
+  function updateVoiceLang() {
+    const selectedLang = document.getElementById("langSelect").value;
+    if (recognition) {
+       recognition.lang = langCodes[selectedLang] || "en-US";
+    }
+  }
 
   async function loadSensors() {
     try {
@@ -442,6 +461,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     if (!msg) return;
 
     const cropInfo = document.getElementById("cropSelect").value;
+    const langInfo = document.getElementById("langSelect").value;
 
     input.value = ""; btn.disabled = true;
     document.getElementById("suggestions").style.display = "none";
@@ -452,7 +472,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       const r = await fetch(BASE + "/api/chat", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo})
+        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo, language: langInfo})
       });
       const d = await r.json();
       removeTyping();
@@ -489,16 +509,17 @@ HTML_CONTENT = """<!DOCTYPE html>
     window.speechSynthesis.cancel();
     const cleanText = text.replace(/[*#_`~]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = "en-US";
+    const selectedLang = document.getElementById("langSelect").value;
+    utterance.lang = langCodes[selectedLang] || "en-US";
     window.speechSynthesis.speak(utterance);
   }
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition;
+  var recognition;
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.lang = 'en-US';
+    recognition.lang = langCodes[document.getElementById("langSelect").value] || 'en-US';
     recognition.onresult = function(event) {
       const transcript = event.results[0][0].transcript;
       document.getElementById("userInput").value = transcript;
@@ -555,13 +576,14 @@ def chat():
     user_message = data.get("message", "").strip()
     history = data.get("history", [])
     crop_info = data.get("crop_info", "Generic Crop Profile")
+    language = data.get("language", "English")
     
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
         
     sensor_data = fetch_sensor_data()
     weather_data = fetch_weather_data()
-    system_prompt = build_prompt(sensor_data, weather_data, crop_info)
+    system_prompt = build_prompt(sensor_data, weather_data, crop_info, language)
     
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-10:]:
