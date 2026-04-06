@@ -309,6 +309,19 @@ HTML_CONTENT = """<!DOCTYPE html>
   .send-btn:hover { transform: scale(1.08); }
   .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
+  .mic-btn {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    outline: none;
+    margin-right: 5px;
+  }
+  .mic-btn:hover { transform: scale(1.1); }
+  .mic-btn.recording { color: #ef4444; animation: pulseMic 1s infinite; filter: drop-shadow(0 0 5px red); }
+  @keyframes pulseMic { 0%{transform:scale(1)} 50%{transform:scale(1.2)} 100%{transform:scale(1)} }
+
   .suggestions {
     display: flex; flex-wrap: wrap; gap: 8px;
     padding: 0 20px 14px;
@@ -351,7 +364,8 @@ HTML_CONTENT = """<!DOCTYPE html>
   <div class="chat-header">
     <div class="dot"></div>
     <span>SoilBot AI</span>
-    <small>Powered by ChatGPT + ThingSpeak</small>
+    <small style="margin-left: auto; margin-right:15px;">Powered by ChatGPT</small>
+    <button id="voiceToggleBtn" onclick="toggleVoiceOutput()" style="background:none; border:none; color:white; cursor:pointer; opacity:1; font-size:18px;" title="Toggle AI Voice">🔊</button>
   </div>
 
   <div class="messages" id="messages">
@@ -370,6 +384,7 @@ HTML_CONTENT = """<!DOCTYPE html>
   </div>
 
   <div class="input-area">
+    <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice Input">🎤</button>
     <input type="text" id="userInput" placeholder="Ask about your soil..." onkeydown="if(event.key==='Enter')sendMessage()">
     <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
   </div>
@@ -444,6 +459,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       else {
         addMessage("bot", d.reply);
         history.push({role:"bot", text: d.reply});
+        readOutLoud(d.reply);
       }
     } catch(e) {
       removeTyping();
@@ -456,6 +472,54 @@ HTML_CONTENT = """<!DOCTYPE html>
   function sendSuggestion(el) {
     document.getElementById("userInput").value = el.textContent;
     sendMessage();
+  }
+
+  let voiceOutputEnabled = true;
+  function toggleVoiceOutput() {
+    voiceOutputEnabled = !voiceOutputEnabled;
+    const btn = document.getElementById("voiceToggleBtn");
+    btn.textContent = voiceOutputEnabled ? "🔊" : "🔈";
+    btn.style.opacity = voiceOutputEnabled ? "1" : "0.5";
+    if(!voiceOutputEnabled) window.speechSynthesis.cancel();
+  }
+
+  function readOutLoud(text) {
+    if(!voiceOutputEnabled) return;
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#_`~]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "en-US";
+    window.speechSynthesis.speak(utterance);
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition;
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = function(event) {
+      const transcript = event.results[0][0].transcript;
+      document.getElementById("userInput").value = transcript;
+      sendMessage();
+    };
+    recognition.onstart = function() {
+      document.getElementById("micBtn").classList.add("recording");
+      document.getElementById("userInput").placeholder = "Listening...";
+    };
+    recognition.onend = function() {
+      document.getElementById("micBtn").classList.remove("recording");
+      document.getElementById("userInput").placeholder = "Ask about your soil...";
+    };
+  }
+
+  function toggleMic() {
+    if(!recognition) { alert("Voice input is not supported in this browser."); return; }
+    if(document.getElementById("micBtn").classList.contains("recording")) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
   }
 
   loadSensors();
