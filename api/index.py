@@ -248,7 +248,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; flex-shrink: 0;
   }
-  .message.bot .avatar { background: rgba(74,222,128,0.2); }
+  .message.bot .avatar { background: transparent; }
   .message.user .avatar { background: rgba(99,102,241,0.3); }
   .bubble {
     max-width: 75%;
@@ -370,7 +370,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
   <div class="messages" id="messages">
     <div class="message bot">
-      <div class="avatar">🤖</div>
+      <div class="avatar"><img src="/logo.png" style="width:100%; height:100%; border-radius:50%; object-fit:cover;"></div>
       <div class="bubble">Hello! I am SoilBot 🌱 I can see your live soil sensor data from ThingSpeak. Ask me anything about your soil health, irrigation, or fertilizer needs!</div>
     </div>
   </div>
@@ -418,7 +418,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     const msgs = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + role;
-    div.innerHTML = `<div class="avatar">${role==="user"?"👤":"🤖"}</div><div class="bubble">${text.replace(/\\n/g,"<br>")}</div>`;
+    div.innerHTML = `<div class="avatar">${role==="user"?"👤":"<img src='/logo.png' style='width:100%; height:100%; border-radius:50%; object-fit:cover;'>"}</div><div class="bubble">${text.replace(/\\n/g,"<br>")}</div>`;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
   }
@@ -427,7 +427,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     const msgs = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message bot"; div.id = "typing";
-    div.innerHTML = `<div class="avatar">🤖</div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+    div.innerHTML = `<div class="avatar"><img src='/logo.png' style='width:100%; height:100%; border-radius:50%; object-fit:cover;'></div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
   }
