@@ -137,7 +137,7 @@ def fetch_weather_data():
     except Exception as e:
         return f"[Weather error: {e}]"
 
-def build_prompt(sensor_data, weather_text=""):
+def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile"):
     if "error" in sensor_data:
         sensor_text = f"[ThingSpeak error: {sensor_data['error']}]"
     else:
@@ -145,8 +145,8 @@ def build_prompt(sensor_data, weather_text=""):
         sensor_text = f"Last updated: {sensor_data.get('_timestamp','')}\n" + "\n".join(lines)
         if "_trend" in sensor_data:
             sensor_text += f"\n  * RECENT TRENDS: {sensor_data['_trend']}"
-        if "_ml_prediction" in sensor_data:
-            sensor_text += f"\n  * ML FORECAST (Next 1, 7, and 10 DAYS): {sensor_data['_ml_prediction']}"
+        if "_history" in sensor_data and sensor_data["_history"]:
+            sensor_text += f"\n  * HISTORICAL DATA POINTS: {sensor_data['_history']}"
             
     return f"""You are SoilBot, an expert AI assistant for soil health and precision agriculture.
 You have access to LIVE sensor readings from an IoT soil monitoring system (ESP32 + LoRaWAN).
@@ -157,14 +157,20 @@ CURRENT LIVE SENSOR DATA:
 WEATHER FORECAST (Local Area):
 {weather_text}
 
+Crop Config & Container Size:
+{crop_info}
+
 SENSOR GUIDE:
 - DS18B20 Temperature: Soil temperature probe
 - Watermark CB: Water tension. 0-10=saturated, 10-30=optimal, 30-60=drying, >60=dry stress
 - NPK pH: Ideal 6.0-7.0 for most crops
 - Nitrogen: Ideal 140-200 mg/kg for spinach. Phosphorus: 30-60. Potassium: 150-250.
 
-Give practical farming advice based on live data. Be friendly and concise.
-If sensor shows N/A, say it is temporarily unavailable.
+INSTRUCTIONS:
+- Give practical farming advice based on live data and the current crop. Be friendly and concise.
+- If the user has a specific crop configuration provided (like Spinach in a 5x3x1 bed), tailor watering volume and fertilizer advice precisely matching that geometry.
+- If sensor shows N/A, say it is temporarily unavailable.
+- When asked to predict future values, analyze the historical data points and trends provided above, then calculate and provide specific predicted numbers for Day 1, Day 7, and Day 10.
 
 CRITICAL FORMATTING RULES:
 1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
@@ -174,7 +180,7 @@ CRITICAL FORMATTING RULES:
 """
 
 @app.route("/")
-def serve_index():
+def index():
     return send_from_directory(".", "index.html")
 
 @app.route("/api/sensor-data")
@@ -186,17 +192,20 @@ def chat():
     data = request.get_json()
     user_message = data.get("message", "").strip()
     history = data.get("history", [])
+    crop_info = data.get("crop_info", "Generic Crop Profile")
+    
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
         
     sensor_data = fetch_sensor_data()
     weather_data = fetch_weather_data()
-    system_prompt = build_prompt(sensor_data, weather_data)
+    system_prompt = build_prompt(sensor_data, weather_data, crop_info)
     
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-10:]:
         role = "user" if msg["role"] == "user" else "assistant"
         messages.append({"role": role, "content": msg["text"]})
+    
     messages.append({"role": "user", "content": user_message})
     
     try:
@@ -207,6 +216,8 @@ def chat():
         reply = response.choices[0].message.content
         return jsonify({"reply": reply, "sensor_data": sensor_data})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":

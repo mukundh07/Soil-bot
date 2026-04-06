@@ -103,7 +103,7 @@ def fetch_weather_data():
     except Exception as e:
         return f"[Weather error: {e}]"
 
-def build_prompt(sensor_data, weather_text=""):
+def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile"):
     if "error" in sensor_data:
         sensor_text = f"[ThingSpeak error: {sensor_data['error']}]"
     else:
@@ -123,6 +123,9 @@ CURRENT LIVE SENSOR DATA:
 WEATHER FORECAST (Local Area):
 {weather_text}
 
+Crop Config & Container Size:
+{crop_info}
+
 SENSOR GUIDE:
 - DS18B20 Temperature: Soil temperature probe
 - Watermark CB: Water tension. 0-10=saturated, 10-30=optimal, 30-60=drying, >60=dry stress
@@ -130,7 +133,8 @@ SENSOR GUIDE:
 - Nitrogen: Ideal 140-200 mg/kg for spinach. Phosphorus: 30-60. Potassium: 150-250.
 
 INSTRUCTIONS:
-- Give practical farming advice based on live data. Be friendly and concise.
+- Give practical farming advice based on live data and the current crop. Be friendly and concise.
+- If the user has a specific crop configuration provided (like Spinach in a 5x3x1 bed), tailor watering volume and fertilizer advice precisely matching that geometry.
 - If sensor shows N/A, say it is temporarily unavailable.
 - When asked to predict future values, analyze the historical data points and trends provided above, then calculate and provide specific predicted numbers for Day 1, Day 7, and Day 10.
 
@@ -334,6 +338,14 @@ HTML_CONTENT = """<!DOCTYPE html>
   <div class="sensor-card"><div class="label">Loading...</div><div class="value">--</div></div>
 </div>
 <div class="sensor-ts" id="sensorTs">Fetching live data...</div>
+<div class="crop-selector" style="margin-bottom: 15px; text-align: center;">
+  <label for="cropSelect" style="color: white; opacity: 0.8; font-size: 14px; margin-right: 10px;">Select Crop & Area:</label>
+  <select id="cropSelect" style="padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; outline: none; cursor: pointer;">
+    <option value="Spinach (Area: 5ft x 3ft, Depth: 1ft)" style="color: black;" selected>🥬 Spinach (5x3x1 ft container)</option>
+    <option value="Tomatoes (Standard spacing)" style="color: black;">🍅 Tomatoes</option>
+    <option value="Generic Crop Profile" style="color: black;">🌱 Generic / Unspecified</option>
+  </select>
+</div>
 
 <div class="chat-container">
   <div class="chat-header">
@@ -412,6 +424,9 @@ HTML_CONTENT = """<!DOCTYPE html>
     const btn   = document.getElementById("sendBtn");
     const msg   = input.value.trim();
     if (!msg) return;
+
+    const cropInfo = document.getElementById("cropSelect").value;
+
     input.value = ""; btn.disabled = true;
     document.getElementById("suggestions").style.display = "none";
     addMessage("user", msg);
@@ -421,7 +436,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       const r = await fetch(BASE + "/api/chat", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({message: msg, history: history})
+        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo})
       });
       const d = await r.json();
       removeTyping();
@@ -463,12 +478,14 @@ def chat():
     data = request.get_json()
     user_message = data.get("message", "").strip()
     history = data.get("history", [])
+    crop_info = data.get("crop_info", "Generic Crop Profile")
+    
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
         
     sensor_data = fetch_sensor_data()
     weather_data = fetch_weather_data()
-    system_prompt = build_prompt(sensor_data, weather_data)
+    system_prompt = build_prompt(sensor_data, weather_data, crop_info)
     
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-10:]:
@@ -484,4 +501,6 @@ def chat():
         reply = response.choices[0].message.content
         return jsonify({"reply": reply, "sensor_data": sensor_data})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500

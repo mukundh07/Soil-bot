@@ -191,6 +191,14 @@
   <div class="sensor-card"><div class="label">Loading...</div><div class="value">--</div></div>
 </div>
 <div class="sensor-ts" id="sensorTs">Fetching live data...</div>
+<div class="crop-selector" style="margin-bottom: 15px; text-align: center;">
+  <label for="cropSelect" style="color: white; opacity: 0.8; font-size: 14px; margin-right: 10px;">Select Crop & Area:</label>
+  <select id="cropSelect" style="padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; outline: none; cursor: pointer;">
+    <option value="Spinach (Area: 5ft x 3ft, Depth: 1ft)" style="color: black;" selected>🥬 Spinach (5x3x1 ft container)</option>
+    <option value="Tomatoes (Standard spacing)" style="color: black;">🍅 Tomatoes</option>
+    <option value="Generic Crop Profile" style="color: black;">🌱 Generic / Unspecified</option>
+  </select>
+</div>
 
 <div class="chat-container">
   <div class="chat-header">
@@ -201,7 +209,7 @@
 
   <div class="messages" id="messages">
     <div class="message bot">
-      <div class="avatar">��</div>
+      <div class="avatar">🤖</div>
       <div class="bubble">Hello! I am SoilBot 🌱 I can see your live soil sensor data from ThingSpeak. Ask me anything about your soil health, irrigation, or fertilizer needs!</div>
     </div>
   </div>
@@ -232,7 +240,7 @@
       const ts  = document.getElementById("sensorTs");
       if (d.error) { ts.textContent = "Sensor fetch error: " + d.error; return; }
       ts.textContent = "Last updated: " + (d._timestamp || "unknown");
-      const icons = {"DS18B20 Temperature":"��️","Watermark CB Value":"💧","NPK Moisture":"💦","NPK pH":"⚗️","Nitrogen (N)":"🌿","Phosphorus (P)":"🌾","Potassium (K)":"🍃","Watermark Moisture":"��"};
+      const icons = {"DS18B20 Temperature":"🌡️","Watermark CB Value":"💧","NPK Moisture":"💦","NPK pH":"⚗️","Nitrogen (N)":"🌿","Phosphorus (P)":"🌾","Potassium (K)":"🍃","Watermark Moisture":"💦"};
       bar.innerHTML = "";
       for (const [k, v] of Object.entries(d)) {
         if (k.startsWith("_")) continue;
@@ -269,6 +277,9 @@
     const btn   = document.getElementById("sendBtn");
     const msg   = input.value.trim();
     if (!msg) return;
+
+    const cropInfo = document.getElementById("cropSelect").value;
+
     input.value = ""; btn.disabled = true;
     document.getElementById("suggestions").style.display = "none";
     addMessage("user", msg);
@@ -278,7 +289,7 @@
       const r = await fetch(BASE + "/api/chat", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({message: msg, history: history})
+        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo})
       });
       const d = await r.json();
       removeTyping();
