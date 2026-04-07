@@ -634,7 +634,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function loadSensors() {
     try {
-      const r = await fetch(BASE + "/api/sensor-data");
+      const r = await fetch(BASE + `/api/sensor-data?t=${Date.now()}`);
       const d = await r.json();
       const grid = document.getElementById("sensorGrid");
       const ts   = document.getElementById("sensorTs");
