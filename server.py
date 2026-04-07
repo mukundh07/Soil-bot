@@ -31,7 +31,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 MODEL = "gpt-4o-mini"
 
 def fetch_sensor_data():
-    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=2000"
+    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?days=7"
     if THINGSPEAK_READ_KEY:
         url += f"&api_key={THINGSPEAK_READ_KEY}"
     try:
