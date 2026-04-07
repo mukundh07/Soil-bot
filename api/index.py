@@ -36,7 +36,7 @@ def get_client():
     return client
 
 def fetch_sensor_data():
-    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?days=7"
+    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=150"
     if THINGSPEAK_READ_KEY:
         url += f"&api_key={THINGSPEAK_READ_KEY}"
     try:
