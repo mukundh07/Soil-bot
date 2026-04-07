@@ -146,7 +146,7 @@ CRITICAL FORMATTING RULES:
 5. You MUST respond completely in the requested language: {language}. Translate your expert agricultural advice fluently into {language}.
 """
 
-HTML_CONTENT = """<!DOCTYPE html>
+HTML_CONTENT = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
