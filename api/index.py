@@ -804,7 +804,10 @@ def serve_logo():
 @app.route("/api/sensor-data")
 
 def get_sensor_data():
-    return jsonify(fetch_sensor_data())
+    response = jsonify(fetch_sensor_data())
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
