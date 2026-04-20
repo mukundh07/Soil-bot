@@ -1073,7 +1073,7 @@ def chat():
 def get_sensor_history():
     try:
         import requests as req
-        url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=8000"
+        url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=2000"
         r = req.get(url, timeout=10)
         data = r.json()
         feeds = data.get("feeds", [])
