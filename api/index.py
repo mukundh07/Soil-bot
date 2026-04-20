@@ -1074,8 +1074,16 @@ def get_sensor_history():
     try:
         import requests as req
         url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=2000"
+        if THINGSPEAK_READ_KEY:
+            url += f"&api_key={THINGSPEAK_READ_KEY}"
+            
         r = req.get(url, timeout=10)
         data = r.json()
+        
+        # ThingSpeak returns -1 if there's a permission/key error, causing 'int' object errors
+        if isinstance(data, int):
+            return jsonify({"error": f"ThingSpeak error code: {data}. Check your API Read Key."}), 403
+            
         feeds = data.get("feeds", [])
         filtered = []
         last_ts = None
