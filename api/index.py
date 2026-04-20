@@ -268,7 +268,8 @@ HTML_CONTENT = r"""
     background: conic-gradient(#4ade80 0%, rgba(255,255,255,0.08) 0%);
     position: relative;
   }
-  .health-circle .score-num { font-size: 20px; font-weight: 800; color: #fff; line-height: 1; }
+  .health-circle .score-num { font-size: 24px; font-weight: 800; color: #fff; line-height: 1; display: flex; align-items: baseline; }
+  .health-circle .score-num span { font-size: 14px; opacity: 0.5; margin-left: 2px; }
   .health-circle .score-lbl { font-size: 8px; color: rgba(255,255,255,0.4); letter-spacing: 1px; text-transform: uppercase; }
   .health-info .score-title { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
   .health-info .score-desc { font-size: 11px; color: rgba(255,255,255,0.4); line-height: 1.5; }
@@ -444,7 +445,7 @@ HTML_CONTENT = r"""
   <div class="status-bar">
     <span class="system-label">Soil Monitoring System</span>
     <span class="ts" id="sensorTs">Connecting to sensors...</span>
-    <div class="countdown-badge">⏱ Next refresh in <span id="countdown">30</span>s</div>
+    <div class="countdown-badge">⏱ Next refresh in <span id="countdown">600</span>s</div>
   </div>
 
   <!-- Health Score Row -->
@@ -456,7 +457,6 @@ HTML_CONTENT = r"""
       <div class="health-score-wrap">
         <div class="health-circle" id="healthCircle">
           <div class="score-num" id="healthNum">--</div>
-          <div class="score-lbl">/100</div>
         </div>
         <div class="health-info">
           <div class="score-title" id="healthTitle">Calculating...</div>
@@ -553,13 +553,13 @@ HTML_CONTENT = r"""
   let historyFeeds = [];
   let alertLog = [];
   let chart = null;
-  let countdownVal = 30;
+  let countdownVal = 600;
   const langCodes = { "English": "en-US", "Hindi": "hi-IN", "Telugu": "te-IN" };
 
   // ═══ Countdown Timer ═══
   setInterval(() => {
     countdownVal--;
-    if (countdownVal <= 0) countdownVal = 30;
+    if (countdownVal <= 0) countdownVal = 600;
     document.getElementById("countdown").textContent = countdownVal;
   }, 1000);
 
@@ -624,6 +624,7 @@ HTML_CONTENT = r"""
 
     const pct = score / 100;
     circle.style.background = `conic-gradient(${color} ${pct * 360}deg, rgba(255,255,255,0.06) 0deg)`;
+    num.innerHTML = `${score}<span>/100</span>`;
     num.style.color = color;
     title.textContent = label;
     desc.textContent = description;
@@ -1003,7 +1004,7 @@ HTML_CONTENT = r"""
   loadSensors();
   loadHistory();
   loadWeather();
-  setInterval(loadSensors, 30000);
+  setInterval(loadSensors, 600000);
   setInterval(loadHistory, 120000);
   setInterval(loadWeather, 300000);
 </script>
