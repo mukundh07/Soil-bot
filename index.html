@@ -397,7 +397,7 @@
 
 <script>
   const BASE = "";
-  let history = [];
+  let chatHistory = [];
   let sensorData = {};
   let historyFeeds = [];
   let alertLog = [];
@@ -773,20 +773,20 @@
     input.value = ""; btn.disabled = true;
     document.getElementById("suggestions").style.display = "none";
     addMessage("user", msg);
-    history.push({role:"user", text:msg});
+    chatHistory.push({role:"user", text:msg});
     showTyping();
     try {
       const r = await fetch(BASE + "/api/chat", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo, language: langInfo})
+        body: JSON.stringify({message: msg, history: chatHistory, crop_info: cropInfo, language: langInfo})
       });
       const d = await r.json();
       removeTyping();
       if (d.error) { addMessage("bot", "Error: " + d.error); }
       else {
         addMessage("bot", d.reply);
-        history.push({role:"bot", text: d.reply});
+        chatHistory.push({role:"bot", text: d.reply});
         readOutLoud(d.reply);
       }
     } catch(e) {

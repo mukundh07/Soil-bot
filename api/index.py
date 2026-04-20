@@ -548,7 +548,7 @@ HTML_CONTENT = """
 
 <script>
   const BASE = "";
-  let history = [];
+  let chatHistory = [];
   let sensorData = {};
   let historyFeeds = [];
   let alertLog = [];
@@ -924,20 +924,20 @@ HTML_CONTENT = """
     input.value = ""; btn.disabled = true;
     document.getElementById("suggestions").style.display = "none";
     addMessage("user", msg);
-    history.push({role:"user", text:msg});
+    chatHistory.push({role:"user", text:msg});
     showTyping();
     try {
       const r = await fetch(BASE + "/api/chat", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({message: msg, history: history, crop_info: cropInfo, language: langInfo})
+        body: JSON.stringify({message: msg, history: chatHistory, crop_info: cropInfo, language: langInfo})
       });
       const d = await r.json();
       removeTyping();
       if (d.error) { addMessage("bot", "Error: " + d.error); }
       else {
         addMessage("bot", d.reply);
-        history.push({role:"bot", text: d.reply});
+        chatHistory.push({role:"bot", text: d.reply});
         readOutLoud(d.reply);
       }
     } catch(e) {
@@ -1067,3 +1067,25 @@ def chat():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/history")
+def get_sensor_history():
+    try:
+        import requests as req
+        url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?results=8000"
+        r = req.get(url, timeout=10)
+        data = r.json()
+        feeds = data.get("feeds", [])
+        filtered = []
+        last_ts = None
+        from datetime import datetime
+        for feed in feeds:
+            ts_str = feed.get("created_at")
+            if not ts_str:
+                continue
+            ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+            if last_ts is None or (ts - last_ts).total_seconds() >= 1800:
+                filtered.append(feed)
+                last_ts = ts
+        return jsonify({"feeds": filtered})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
