@@ -141,13 +141,24 @@ def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile",
     if "error" in sensor_data:
         sensor_text = f"[ThingSpeak error: {sensor_data['error']}]"
     else:
-        lines = [f"  * {k}: {v}" for k, v in sensor_data.items() if not k.startswith("_")]
+        lines = [f"  - {k}: {v}" for k, v in sensor_data.items() if not k.startswith("_")]
         sensor_text = f"Last updated: {sensor_data.get('_timestamp','')}\n" + "\n".join(lines)
         if "_trend" in sensor_data:
-            sensor_text += f"\n  * RECENT TRENDS: {sensor_data['_trend']}"
+            sensor_text += f"\n\nRECENT TRENDS (last 7 days):\n{sensor_data['_trend']}"
         if "_history" in sensor_data and sensor_data["_history"]:
-            sensor_text += f"\n  * HISTORICAL DATA POINTS: {sensor_data['_history']}"
-            
+            sensor_text += f"\n\nHISTORICAL DATA POINTS:\n{sensor_data['_history']}"
+
+    # Inject ML predictions into the prompt
+    prediction_text = ""
+    if "_ml_prediction" in sensor_data and sensor_data["_ml_prediction"]:
+        prediction_text = f"""
+ML-COMPUTED PREDICTIONS (Linear regression over last 7 days of real sensor data):
+{sensor_data['_ml_prediction']}
+
+These are real calculated predictions. When user asks about future values or 7-day prediction,
+use EXACTLY these numbers. Do not make up different values.
+"""
+
     return f"""You are SoilBot, an expert AI assistant for soil health and precision agriculture.
 You have access to LIVE sensor readings from an IoT soil monitoring system (ESP32 + LoRaWAN).
 
@@ -157,27 +168,29 @@ CURRENT LIVE SENSOR DATA:
 WEATHER FORECAST (Local Area):
 {weather_text}
 
-Crop Config & Container Size:
+Crop Config and Container Size:
 {crop_info}
-
+{prediction_text}
 SENSOR GUIDE:
 - DS18B20 Temperature: Soil temperature probe
-- Watermark CB: Water tension. 0-10=saturated, 10-30=optimal, 30-60=drying, >60=dry stress
+- Watermark CB: Water tension. 0-10=saturated, 10-30=optimal, 30-60=drying, above 60=dry stress
 - NPK pH: Ideal 6.0-7.0 for most crops
 - Nitrogen: Ideal 140-200 mg/kg for spinach. Phosphorus: 30-60. Potassium: 150-250.
 
 INSTRUCTIONS:
-- Give practical farming advice based on live data and the current crop. Be friendly and concise.
-- If the user has a specific crop configuration provided (like Spinach in a 5x3x1 bed), tailor watering volume and fertilizer advice precisely matching that geometry.
+- Answer questions concisely and directly. Do not add unnecessary preamble.
+- Give practical farming advice based on live data and the current crop.
+- If the user has a specific crop configuration (like Spinach in a 5x3x1 bed), tailor watering volume and fertilizer advice precisely matching that geometry.
 - If sensor shows N/A, say it is temporarily unavailable.
-- When asked to predict future values, analyze the historical data points and trends provided above, then calculate and provide specific predicted numbers for Day 1, Day 7, and Day 10.
+- When predicting future values, use the ML-COMPUTED PREDICTIONS section above. Quote those exact numbers.
 
 CRITICAL FORMATTING RULES:
-1. NEVER use the asterisk/star symbol (*) anywhere in your response. Do not use ** for bolding. Do not use * for bullet points.
-2. Structure your answers clearly using paragraphs with empty line breaks.
-3. If making a list, use standard numbers (1., 2., 3.) or simple hyphens (-).
-4. The output must be perfectly clean plain text that is easy to read.
-5. You MUST respond completely in the requested language: {language}. Translate your expert agricultural advice fluently into {language}.
+1. NEVER use the asterisk or star symbol anywhere in your response. Not for bold, not for bullets.
+2. NEVER use markdown formatting of any kind (no **, no ##, no __, no backticks).
+3. Structure your answers using plain paragraphs with blank lines between them.
+4. For lists, use hyphens (-) or numbers (1., 2., 3.).
+5. Keep responses short and to the point. Maximum 6-8 lines unless a full summary is requested.
+6. Respond completely in: {language}.
 """
 
 @app.route("/")
@@ -191,6 +204,19 @@ def serve_logo():
 @app.route("/api/sensor-data")
 def get_sensor_data():
     return jsonify(fetch_sensor_data())
+
+@app.route("/api/history")
+def get_history():
+    """Returns raw 7-day feed data for the frontend chart."""
+    url = f"https://api.thingspeak.com/channels/{THINGSPEAK_CH_ID}/feeds.json?days=7&results=500"
+    if THINGSPEAK_READ_KEY:
+        url += f"&api_key={THINGSPEAK_READ_KEY}"
+    try:
+        r = requests.get(url, timeout=8)
+        r.raise_for_status()
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
