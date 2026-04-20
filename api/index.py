@@ -704,9 +704,10 @@ HTML_CONTENT = """
       grid.innerHTML = "";
       for (const [k, v] of Object.entries(d)) {
         if (k.startsWith("_")) continue;
-        const isNA = v === "N/A";
-        const numVal = v.replace(/[^\d.-]/g, '');
-        const unit = v.replace(/[\d.-]/g, '').trim();
+        const vStr = String(v);
+        const isNA = vStr === "N/A";
+        const numVal = vStr.replace(/[^\d.-]/g, '');
+        const unit = vStr.replace(/[\d.-]/g, '').trim();
         const status = isNA ? "na" : getSensorStatus(k, numVal);
         grid.innerHTML += `<div class="sensor-card status-${status}">
           <div class="card-icon">${sensorIcons[k]||"📈"}</div>
