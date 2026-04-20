@@ -148,7 +148,7 @@ CRITICAL FORMATTING RULES:
 6. Respond completely in: {language}.
 """
 
-HTML_CONTENT = """
+HTML_CONTENT = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
