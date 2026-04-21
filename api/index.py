@@ -75,10 +75,15 @@ def fetch_sensor_data():
         result["_timestamp"] = latest.get("created_at", "unknown")
         result["_trend"] = " ".join(trend_text) if trend_text else "Conditions are completely stable."
         
-        # Calculate Daily Summary Stats from the local feeds list
-        temp_vals = [float(f["field1"]) for f in feeds if f.get("field1")]
-        moist_vals = [float(f["field3"]) for f in feeds if f.get("field3")]
-        cb_vals = [float(f["field2"]) for f in feeds if f.get("field2")]
+        # Calculate Daily Summary Stats using only TODAY's feeds
+        from datetime import datetime, timezone
+        today_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        todays_feeds = [f for f in feeds if f.get("created_at", "").startswith(today_prefix)]
+        if not todays_feeds: todays_feeds = feeds[-1:] # Fallback if no feeds today
+        
+        temp_vals = [float(f["field1"]) for f in todays_feeds if f.get("field1")]
+        moist_vals = [float(f["field2"]) for f in todays_feeds if f.get("field2")]
+        cb_vals = [float(f["field3"]) for f in todays_feeds if f.get("field3")]
         
         result["_summary"] = {
             "max_temp": f"{max(temp_vals):.1f}°C" if temp_vals else "--",
@@ -86,7 +91,7 @@ def fetch_sensor_data():
             "max_moist": f"{max(moist_vals):.1f}%" if moist_vals else "--",
             "min_moist": f"{min(moist_vals):.1f}%" if moist_vals else "--",
             "avg_cb": f"{(sum(cb_vals)/len(cb_vals)):.1f} cb" if cb_vals else "--",
-            "readings": len(feeds)
+            "readings": len(todays_feeds)
         }
 
         # Build a simple history summary for ChatGPT to analyze
@@ -696,7 +701,7 @@ HTML_CONTENT = r"""
         const status = isNA ? "na" : getSensorStatus(key, numVal);
         grid.innerHTML += `<div class="sensor-card status-${status}">
           <div class="card-icon">${sensorIcons[key]||"📈"}</div>
-          <div class="card-label">${key.replace("DS18B20 ","").replace("Watermark ","WM ").replace("NPK ","")}</div>
+          <div class="card-label">${key.replace("DS18B20 ","").replace("Watermark Moisture","WM RESISTANCE").replace("Watermark ","WM ").replace("NPK ","")}</div>
           <div class="card-value">${isNA ? "N/A" : numVal}</div>
           <div class="card-unit">${isNA ? "offline" : unit}</div>
         </div>`;
