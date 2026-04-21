@@ -5,6 +5,12 @@ from flask_cors import CORS
 from openai import OpenAI
 from datetime import datetime
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 app = Flask(__name__)
 CORS(app)
 
@@ -14,13 +20,13 @@ THINGSPEAK_READ_KEY = os.environ.get("THINGSPEAK_READ_KEY", "")
 
 FIELD_MAP = {
     "field1": ("DS18B20 Temperature", "C"),
-    "field2": ("Watermark CB Value",  "cb"),
-    "field3": ("NPK Moisture",        "%"),
-    "field4": ("NPK pH",              ""),
-    "field5": ("Nitrogen (N)",        "mg/kg"),
-    "field6": ("Phosphorus (P)",      "mg/kg"),
-    "field7": ("Potassium (K)",       "mg/kg"),
-    "field8": ("Watermark Moisture",  "%"),
+    "field2": ("NPK Moisture",        "%"),
+    "field3": ("Watermark CB Value",  "cb"),
+    "field4": ("Watermark Moisture",  "Ω"),
+    "field5": ("NPK pH",              ""),
+    "field6": ("Nitrogen (N)",        "mg/kg"),
+    "field7": ("Phosphorus (P)",      "mg/kg"),
+    "field8": ("Potassium (K)",       "mg/kg"),
 }
 
 client = None
@@ -69,6 +75,20 @@ def fetch_sensor_data():
         result["_timestamp"] = latest.get("created_at", "unknown")
         result["_trend"] = " ".join(trend_text) if trend_text else "Conditions are completely stable."
         
+        # Calculate Daily Summary Stats from the local feeds list
+        temp_vals = [float(f["field1"]) for f in feeds if f.get("field1")]
+        moist_vals = [float(f["field3"]) for f in feeds if f.get("field3")]
+        cb_vals = [float(f["field2"]) for f in feeds if f.get("field2")]
+        
+        result["_summary"] = {
+            "max_temp": f"{max(temp_vals):.1f}°C" if temp_vals else "--",
+            "min_temp": f"{min(temp_vals):.1f}°C" if temp_vals else "--",
+            "max_moist": f"{max(moist_vals):.1f}%" if moist_vals else "--",
+            "min_moist": f"{min(moist_vals):.1f}%" if moist_vals else "--",
+            "avg_cb": f"{(sum(cb_vals)/len(cb_vals)):.1f} cb" if cb_vals else "--",
+            "readings": len(feeds)
+        }
+
         # Build a simple history summary for ChatGPT to analyze
         history_points = []
         step = max(1, len(feeds) // 5)
@@ -90,18 +110,21 @@ def fetch_sensor_data():
         return {"error": str(e)}
 
 def fetch_weather_data():
-    url = "https://api.open-meteo.com/v1/forecast?latitude=17.188&longitude=78.468&current=temperature_2m,precipitation&daily=precipitation_probability_max&timezone=Asia%2FKolkata&forecast_days=2"
+    url = "https://api.open-meteo.com/v1/forecast?latitude=17.188&longitude=78.468&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&daily=precipitation_probability_max&timezone=Asia%2FKolkata&forecast_days=2"
     try:
         r = requests.get(url, timeout=5)
-        if r.status_code != 200: return "Weather data unavailable."
+        if r.status_code != 200: return {"error": "Weather data unavailable."}
         d = r.json()
-        c_temp = d["current"]["temperature_2m"]
-        c_rain = d["current"]["precipitation"]
-        p_today = d["daily"]["precipitation_probability_max"][0]
-        p_tmrw = d["daily"]["precipitation_probability_max"][1]
-        return f"Current Temp: {c_temp} C, Rain right now: {c_rain}mm. Rain chance: {p_today}% today, {p_tmrw}% tomorrow."
+        curr = d["current"]
+        return {
+            "temp": curr["temperature_2m"],
+            "humidity": curr["relative_humidity_2m"],
+            "wind": curr["wind_speed_10m"],
+            "rain": curr["precipitation"],
+            "rain_chance": d["daily"]["precipitation_probability_max"][0]
+        }
     except Exception as e:
-        return f"[Weather error: {e}]"
+        return {"error": str(e)}
 
 def build_prompt(sensor_data, weather_text="", crop_info="Generic Crop Profile", language="English"):
     if "error" in sensor_data:
@@ -250,8 +273,8 @@ HTML_CONTENT = r"""
   }
   .countdown-badge span { color: #4ade80; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-  /* ═══════ HEALTH SCORE ═══════ */
-  .health-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  /* ═══════ TOP WIDGETS ═══════ */
+  .health-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
   .health-card {
     background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
     border-radius: 18px; padding: 20px 24px;
@@ -261,18 +284,10 @@ HTML_CONTENT = r"""
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
     background: linear-gradient(90deg, #4ade80, #22d3ee); border-radius: 18px 18px 0 0;
   }
-  .health-score-wrap { display: flex; align-items: center; gap: 16px; }
-  .health-circle {
-    width: 72px; height: 72px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; flex-direction: column;
-    background: conic-gradient(#4ade80 0%, rgba(255,255,255,0.08) 0%);
-    position: relative;
-  }
-  .health-circle .score-num { font-size: 24px; font-weight: 800; color: #fff; line-height: 1; display: flex; align-items: baseline; }
-  .health-circle .score-num span { font-size: 14px; opacity: 0.5; margin-left: 2px; }
-  .health-circle .score-lbl { font-size: 8px; color: rgba(255,255,255,0.4); letter-spacing: 1px; text-transform: uppercase; }
-  .health-info .score-title { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
-  .health-info .score-desc { font-size: 11px; color: rgba(255,255,255,0.4); line-height: 1.5; }
+  .summary-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.35); font-weight: 600; margin-bottom: 4px; }
+  .summary-list { display: flex; flex-direction: column; gap: 10px; }
+  .summary-item { display: flex; justify-content: space-between; font-size: 13px; color: rgba(255,255,255,0.7); }
+  .summary-item .sum-val { font-weight: 700; color: #fff; }
 
   .weather-card {
     background: linear-gradient(135deg, rgba(34,211,238,0.06), rgba(74,222,128,0.04));
@@ -317,8 +332,8 @@ HTML_CONTENT = r"""
   .sensor-card:hover::before { opacity: 1; }
   .sensor-card .card-icon { font-size: 22px; margin-bottom: 8px; }
   .sensor-card .card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.4); font-weight: 600; margin-bottom: 6px; }
-  .sensor-card .card-value { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; }
-  .sensor-card .card-unit { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 4px; font-weight: 500; }
+  .sensor-card .card-value { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; margin: 4px 0; }
+  .sensor-card .card-unit { font-size: 11px; color: rgba(255,255,255,0.35); font-weight: 500; }
   .sensor-card.status-good { border-color: rgba(74,222,128,0.2); }
   .sensor-card.status-good .card-value { color: #4ade80; }
   .sensor-card.status-warn { border-color: rgba(250,204,21,0.25); }
@@ -448,20 +463,16 @@ HTML_CONTENT = r"""
     <div class="countdown-badge">⏱ Next refresh in <span id="countdown">600</span>s</div>
   </div>
 
-  <!-- Health Score Row -->
+  <!-- Top Widgets -->
   <div class="health-row">
-
-    <!-- Crop Health Score -->
-    <div class="health-card" id="healthCard">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.35);font-weight:600;">Crop Health Score</div>
-      <div class="health-score-wrap">
-        <div class="health-circle" id="healthCircle">
-          <div class="score-num" id="healthNum">--</div>
-        </div>
-        <div class="health-info">
-          <div class="score-title" id="healthTitle">Calculating...</div>
-          <div class="score-desc" id="healthDesc">Waiting for sensor data to compute soil health index.</div>
-        </div>
+    <!-- Today's Field Summary -->
+    <div class="health-card" id="summaryCard">
+      <div class="summary-title">📊 Today's Field Summary</div>
+      <div class="summary-list">
+        <div class="summary-item"><span>Max / Min Soil Temp:</span><span class="sum-val" style="color:#22d3ee" id="sumBothTemp">-- / --</span></div>
+        <div class="summary-item"><span>Max / Min Moisture:</span><span class="sum-val" style="color:#4ade80" id="sumBothMoist">-- / --</span></div>
+        <div class="summary-item"><span>Average Watermark CB:</span><span class="sum-val" style="color:#facc15" id="sumAvgCb">--</span></div>
+        <div class="summary-item"><span>Readings Today:</span><span class="sum-val" style="color:#fff" id="sumReadings">--</span></div>
       </div>
     </div>
 
@@ -480,11 +491,9 @@ HTML_CONTENT = r"""
         <div class="alert-log-empty">No alerts yet — system monitoring</div>
       </div>
     </div>
-
   </div>
 
-  <!-- Sensor Grid -->
-  <div class="sensor-grid" id="sensorGrid">
+  <div class="sensor-grid" id="sensorGrid" style="margin-top:20px;">
     <div class="sensor-card status-na">
       <div class="card-icon">📡</div>
       <div class="card-label">Awaiting Data</div>
@@ -568,7 +577,22 @@ HTML_CONTENT = r"""
     if (recognition) recognition.lang = langCodes[selectedLang] || "en-US";
   }
 
-  // ═══ Sensor Status ═══
+  const sensorIcons = {
+    "DS18B20 Temperature":"🌡️","Watermark CB Value":"💧","NPK Moisture":"💦",
+    "NPK pH":"⚗️","Nitrogen (N)":"🌿","Phosphorus (P)":"🧪","Potassium (K)":"🍃","Watermark Moisture":"💦"
+  };
+
+  const requestedOrder = [
+    "DS18B20 Temperature",
+    "NPK Moisture",
+    "Watermark CB Value",
+    "Watermark Moisture",
+    "NPK pH",
+    "Nitrogen (N)",
+    "Phosphorus (P)",
+    "Potassium (K)"
+  ];
+
   function getSensorStatus(name, rawVal) {
     const v = parseFloat(rawVal);
     if (isNaN(v)) return "na";
@@ -580,54 +604,13 @@ HTML_CONTENT = r"""
     return "good";
   }
 
-  const sensorIcons = {
-    "DS18B20 Temperature":"🌡️","Watermark CB Value":"💧","NPK Moisture":"💦",
-    "NPK pH":"⚗️","Nitrogen (N)":"🌿","Phosphorus (P)":"🧪","Potassium (K)":"🍃","Watermark Moisture":"💦"
-  };
-
-  // ═══ Health Score Calculation ═══
-  function computeHealthScore(d) {
-    let score = 0; let count = 0;
-    const cb = parseFloat(d["Watermark CB Value"]);
-    const ph = parseFloat(d["NPK pH"]);
-    const moist = parseFloat(d["NPK Moisture"]);
-    const temp = parseFloat(d["DS18B20 Temperature"]);
-    const n = parseFloat(d["Nitrogen (N)"]);
-    const p = parseFloat(d["Phosphorus (P)"]);
-    const k = parseFloat(d["Potassium (K)"]);
-
-    if (!isNaN(cb)) { score += cb <= 30 ? 100 : cb <= 60 ? 70 : cb <= 100 ? 40 : 10; count++; }
-    if (!isNaN(ph)) { score += (ph >= 6.0 && ph <= 7.0) ? 100 : (ph >= 5.5 && ph <= 7.5) ? 70 : 30; count++; }
-    if (!isNaN(moist)) { score += moist >= 40 ? 100 : moist >= 25 ? 65 : 20; count++; }
-    if (!isNaN(temp)) { score += (temp >= 18 && temp <= 30) ? 100 : (temp >= 10 && temp <= 38) ? 70 : 30; count++; }
-    if (!isNaN(n) && n > 0) { score += n >= 140 ? 100 : n >= 80 ? 65 : 30; count++; }
-    if (!isNaN(p) && p > 0) { score += p >= 30 ? 100 : p >= 15 ? 65 : 30; count++; }
-    if (!isNaN(k) && k > 0) { score += k >= 150 ? 100 : k >= 80 ? 65 : 30; count++; }
-
-    return count > 0 ? Math.round(score / count) : null;
-  }
-
-  function updateHealthCard(d) {
-    const score = computeHealthScore(d);
-    if (score === null) return;
-    const num = document.getElementById("healthNum");
-    const circle = document.getElementById("healthCircle");
-    const title = document.getElementById("healthTitle");
-    const desc = document.getElementById("healthDesc");
-
-    num.textContent = score;
-    let color, label, description;
-    if (score >= 80) { color = "#4ade80"; label = "Excellent 🌟"; description = "Your soil is in great condition. Maintain current practices."; }
-    else if (score >= 60) { color = "#22d3ee"; label = "Good 👍"; description = "Soil health is acceptable. Minor adjustments may help."; }
-    else if (score >= 40) { color = "#facc15"; label = "Fair ⚠️"; description = "Some parameters need attention. Check alerts below."; }
-    else { color = "#ef4444"; label = "Poor 🚨"; description = "Soil health is critically low. Immediate action required!"; }
-
-    const pct = score / 100;
-    circle.style.background = `conic-gradient(${color} ${pct * 360}deg, rgba(255,255,255,0.06) 0deg)`;
-    num.innerHTML = `${score}<span>/100</span>`;
-    num.style.color = color;
-    title.textContent = label;
-    desc.textContent = description;
+  function updateSummary(d) {
+    if (d._summary) {
+      document.getElementById("sumBothTemp").textContent = `${d._summary.max_temp} / ${d._summary.min_temp}`;
+      document.getElementById("sumBothMoist").textContent = `${d._summary.max_moist} / ${d._summary.min_moist}`;
+      document.getElementById("sumAvgCb").textContent = d._summary.avg_cb;
+      document.getElementById("sumReadings").textContent = d._summary.readings;
+    }
 
     // Check alerts
     const cb = parseFloat(d["Watermark CB Value"]);
@@ -664,17 +647,18 @@ HTML_CONTENT = r"""
   // ═══ Weather ═══
   async function loadWeather() {
     try {
-      const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=17.188&longitude=78.468&current=temperature_2m,precipitation,weathercode&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=Asia%2FKolkata&forecast_days=3");
+      const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=17.188&longitude=78.468&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=Asia%2FKolkata&forecast_days=3");
       const d = await r.json();
       document.getElementById("wTemp").textContent = `${d.current.temperature_2m}°C`;
       const codes = {0:"☀️ Clear",1:"🌤 Mostly Clear",2:"⛅ Partly Cloudy",3:"☁️ Overcast",45:"🌫 Foggy",51:"🌦 Drizzle",61:"🌧 Rain",80:"🌦 Showers",95:"⛈ Thunderstorm"};
       const code = d.current.weathercode;
       const desc = codes[code] || codes[Math.floor(code/10)*10] || "Variable";
       document.getElementById("wDesc").textContent = `${desc} · Rain now: ${d.current.precipitation}mm`;
+      
       document.getElementById("wRain").innerHTML =
-        `<div class="weather-rain-item">Today: <span>${d.daily.precipitation_probability_max[0]}%</span> rain</div>
-         <div class="weather-rain-item">Tomorrow: <span>${d.daily.precipitation_probability_max[1]}%</span> rain</div>
-         <div class="weather-rain-item">Day 3: <span>${d.daily.precipitation_probability_max[2]}%</span> rain</div>`;
+        `<div class="weather-rain-item">Humidity: <span>${d.current.relative_humidity_2m}%</span></div>
+         <div class="weather-rain-item">Wind: <span>${d.current.wind_speed_10m} km/h</span></div>
+         <div class="weather-rain-item">Rain chance: <span>${d.daily.precipitation_probability_max[0]}%</span></div>`;
     } catch(e) {
       document.getElementById("wDesc").textContent = "Weather data unavailable.";
     }
@@ -682,7 +666,7 @@ HTML_CONTENT = r"""
 
   // ═══ Sensor Load ═══
   async function loadSensors() {
-    countdownVal = 30;
+    countdownVal = 600;
     try {
       const r = await fetch(BASE + "/api/sensor-data");
       const d = await r.json();
@@ -703,21 +687,21 @@ HTML_CONTENT = r"""
       }
 
       grid.innerHTML = "";
-      for (const [k, v] of Object.entries(d)) {
-        if (k.startsWith("_")) continue;
-        const vStr = String(v);
-        const isNA = vStr === "N/A";
+      for (const key of requestedOrder) {
+        if (!d.hasOwnProperty(key)) continue;
+        const vStr = String(d[key]);
+        const isNA = vStr === "N/A" || vStr === "undefined";
         const numVal = vStr.replace(/[^\d.-]/g, '');
         const unit = vStr.replace(/[\d.-]/g, '').trim();
-        const status = isNA ? "na" : getSensorStatus(k, numVal);
+        const status = isNA ? "na" : getSensorStatus(key, numVal);
         grid.innerHTML += `<div class="sensor-card status-${status}">
-          <div class="card-icon">${sensorIcons[k]||"📈"}</div>
-          <div class="card-label">${k.replace("DS18B20 ","").replace("Watermark ","WM ").replace("NPK ","")}</div>
+          <div class="card-icon">${sensorIcons[key]||"📈"}</div>
+          <div class="card-label">${key.replace("DS18B20 ","").replace("Watermark ","WM ").replace("NPK ","")}</div>
           <div class="card-value">${isNA ? "N/A" : numVal}</div>
           <div class="card-unit">${isNA ? "offline" : unit}</div>
         </div>`;
       }
-      updateHealthCard(d);
+      updateSummary(d);
     } catch(e) {
       document.getElementById("sensorTs").textContent = "Could not fetch sensors.";
     }
