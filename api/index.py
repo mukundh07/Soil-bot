@@ -722,11 +722,11 @@ HTML_CONTENT = r"""
   }
 
   const chartConfigs = {
-    temp:    { label: "Soil Temp (°C)", field: "field1", color: "#f97316", scale: 1 },
-    cb:      { label: "Watermark CB", field: "field2", color: "#22d3ee", scale: 1 },
-    moisture:{ label: "Moisture (%)", field: "field3", color: "#4ade80", scale: 1 },
-    ph:      { label: "NPK pH", field: "field4", color: "#a78bfa", scale: 1 },
-    npk:     { label: ["N", "P", "K"], field: ["field5","field6","field7"], color: ["#4ade80","#f59e0b","#38bdf8"], scale: 1 }
+    temp:    { label: "Soil Temp (°C)",  field: "field1", color: "#f97316", scale: 1 },
+    cb:      { label: "Watermark CB",    field: "field3", color: "#22d3ee", scale: 1 },
+    moisture:{ label: "Moisture (%)",    field: "field2", color: "#4ade80", scale: 1 },
+    ph:      { label: "NPK pH",          field: "field5", color: "#a78bfa", scale: 1 },
+    npk:     { label: ["N", "P", "K"],   field: ["field6","field7","field8"], color: ["#4ade80","#f59e0b","#38bdf8"], scale: 1 }
   };
 
   function toIST(utcStr) {
